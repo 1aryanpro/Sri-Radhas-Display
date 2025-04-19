@@ -110,13 +110,18 @@
     }
 
     img {
+        height: 100vh;
         width: 100%;
+        max-width: 100vw;
         object-fit: contain;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
         transition: opacity 0.5s ease-in-out;
     }
 
     .progress-bar-container {
+        position: absolute;
+        bottom: 0;
+        left: 0;
         height: 1vh;
         width: 100%;
         background: rgba(255, 255, 255, 0.1);
