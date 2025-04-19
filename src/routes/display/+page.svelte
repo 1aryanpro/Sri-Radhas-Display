@@ -10,7 +10,7 @@
     const BUCKET_NAME = "carousel";
 
     onMount(async () => {
-        if (updateImages()) startCarousel();
+        if (updateImages()) updateProgress();
 
         return () => clearInterval(interval);
     });
@@ -27,7 +27,6 @@
 
         images = data
             .filter((file) => file.name !== ".emptyFolderPlaceholder")
-            .filter((file) => /\.(jpg|jpeg|png|webp|gif)$/i.test(file.name))
             .map(
                 (file) =>
                     supabase.storage.from(BUCKET_NAME).getPublicUrl(file.name)
@@ -44,10 +43,6 @@
         resetting = false;
 
     const imageTime = 30 * 1000;
-
-    function startCarousel() {
-        updateProgress();
-    }
 
     function updateProgress() {
         progressInterval = setInterval(() => {
@@ -75,17 +70,23 @@
 </script>
 
 <div class="page">
-    <div class="carousel">
-        <img src={images[current]} alt="Carousel" />
-        <div class="progress-bar-container">
-            <div
-                class="progress-bar"
-                class:resetting-bar={resetting}
-                style="width: {progress}%; transition:
+    {#if images.length > 0}
+        <div class="carousel">
+            <img
+                src={images[current]}
+                alt="Carousel"
+                class="carousel-content"
+            />
+            <div class="progress-bar-container">
+                <div
+                    class="progress-bar"
+                    class:resetting-bar={resetting}
+                    style="width: {progress}%; transition:
             width {progressStep}ms linear;"
-            ></div>
+                ></div>
+            </div>
         </div>
-    </div>
+    {/if}
 </div>
 
 <style>
