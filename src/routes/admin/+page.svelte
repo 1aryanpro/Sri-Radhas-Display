@@ -105,8 +105,9 @@
     <input type="file" id="fileUpload" on:change={uploadFile} hidden />
     <label for="fileUpload" class="upload-button">📁 Upload Image</label>
 </div>
-
-<p>{uploadMessage}</p>
+{#if uploadMessage}
+    <p><span>{uploadMessage}</span></p>
+{/if}
 
 <h2>Uploaded Files</h2>
 <div class="grid">
@@ -134,6 +135,18 @@
         display: flex;
         justify-content: center;
         margin: 1rem 0;
+    }
+
+    p {
+        text-align: center;
+        margin-top: 2rem;
+    }
+
+    span {
+        padding: 1rem;
+        margin: auto;
+        background-color: #8cff7c;
+        border-radius: 0.5rem;
     }
 
     h2 {
