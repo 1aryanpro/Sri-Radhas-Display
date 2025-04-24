@@ -80,7 +80,14 @@
         const baseName = file.name.replace(/\.[^/.]+$/, "");
         const fileName = `${formattedDate}_${baseName}.${fileExtension}`;
 
-        const imageTypes = ["jpg", "jpeg", "png", "pdf"];
+        const imageTypes = ["jpg", "jpeg", "png"];
+        if (fileExtension == "pdf") {
+            uploadMessage = `PDF Files are not supported. Please convert them to
+a PNG here. <a href="https://www.freeconvert.com/pdf-to-png"
+target="_blank">Free Convert</a>`;
+            return;
+        }
+
         if (imageTypes.indexOf(fileExtension) == -1) {
             uploadMessage = `Please select an image. A ${fileExtension} type file isn't accepted.`;
             return;
@@ -106,7 +113,7 @@
     <label for="fileUpload" class="upload-button">📁 Upload Image</label>
 </div>
 {#if uploadMessage}
-    <p><span>{uploadMessage}</span></p>
+    <p><span>{@html uploadMessage}</span></p>
 {/if}
 
 <h2>Uploaded Files</h2>

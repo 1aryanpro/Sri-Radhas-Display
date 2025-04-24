@@ -2,6 +2,7 @@
     import { supabase } from "$lib/supabase";
     import { onMount } from "svelte";
     import Carousel from "svelte-carousel/src/components/Carousel/Carousel.svelte";
+    import PdfCanvas from "$lib/PDFCanvas.svelte";
 
     let images = [];
     let current = 0;
@@ -10,8 +11,7 @@
     const BUCKET_NAME = "carousel";
 
     onMount(async () => {
-        if (updateImages()) updateProgress();
-
+        if (await updateImages()) updateProgress();
         return () => clearInterval(interval);
     });
 
@@ -42,7 +42,7 @@
         progressStep = 1000,
         resetting = false;
 
-    const imageTime = 30 * 1000;
+    const imageTime = 20 * 1000;
 
     function updateProgress() {
         progressInterval = setInterval(() => {
@@ -72,11 +72,7 @@
 <div class="page">
     {#if images.length > 0}
         <div class="carousel">
-            <img
-                src={images[current]}
-                alt="Carousel"
-                class="carousel-content"
-            />
+            <img src={images[current]} alt="Carousel Content" />
             <div class="progress-bar-container">
                 <div
                     class="progress-bar"
