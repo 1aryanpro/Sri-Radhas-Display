@@ -11,7 +11,7 @@
         const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
         const { error } = await supabase.auth.signInWithPassword({
-            email: emailPattern.test(email) ? email : email + '@sriradhas.com',
+            email: emailPattern.test(email) ? email : email + "@sriradhas.com",
             password,
         });
 
@@ -37,7 +37,7 @@
     <input type="password" placeholder="Password" bind:value={password} />
     <button on:click={handleLogin}>Login</button>
 
-    <hr>
+    <hr />
     <button on:click={goToDisplay}>Go to Display Page</button>
 </main>
 
@@ -67,7 +67,8 @@
         border-radius: 10px;
     }
 
-    input, button {
+    input,
+    button {
         padding: 0.5rem;
         font-size: 1.5rem;
         border-radius: 15px;

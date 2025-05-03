@@ -6,13 +6,33 @@
 
     let images = [];
     let current = 0;
-    let interval;
 
     const BUCKET_NAME = "carousel";
 
     onMount(async () => {
         if (await updateImages()) updateProgress();
-        return () => clearInterval(interval);
+
+        // Request wake lock
+        if ("wakeLock" in navigator) {
+            try {
+                wakeLock = await navigator.wakeLock.request("screen");
+                console.log("Wake lock is active");
+            } catch (err) {
+                console.error("Failed to acquire wake lock:", err);
+            }
+        } else {
+            console.warn("Wake Lock API is not supported in this browser.");
+        }
+
+        return () => {
+            clearInterval(interval);
+            // Release wake lock
+            if (wakeLock) {
+                wakeLock.release().then(() => {
+                    console.log("Wake lock released");
+                });
+            }
+        };
     });
 
     async function updateImages() {
@@ -37,16 +57,15 @@
         return true;
     }
 
-    let progress = 0;
-    let progressInterval,
-        progressStep = 1000,
-        resetting = false;
-
+    let progressStep = 1000;
     const imageTime = 20 * 1000;
 
     function updateProgress() {
         progressInterval = setInterval(() => {
             progress += (progressStep / imageTime) * 100;
+
+            document.dispatchEvent(new Event("mousemove"));
+
             if (progress > 100) {
                 clearInterval(progressInterval);
                 current = (current + 1) % images.length;
