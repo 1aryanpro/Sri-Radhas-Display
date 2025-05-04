@@ -2,36 +2,26 @@
     import { supabase } from "$lib/supabase";
     import { onMount } from "svelte";
     import Carousel from "svelte-carousel/src/components/Carousel/Carousel.svelte";
-    import PdfCanvas from "$lib/PDFCanvas.svelte";
 
     let images = [];
     let current = 0;
+
+    let progressStep = 1000;
+    const imageTime = 20 * 1000;
+
+    let progressInterval;
+    let progress = 0;
+    let resetting = false;
 
     const BUCKET_NAME = "carousel";
 
     onMount(async () => {
         if (await updateImages()) updateProgress();
-
-        // Request wake lock
-        if ("wakeLock" in navigator) {
-            try {
-                wakeLock = await navigator.wakeLock.request("screen");
-                console.log("Wake lock is active");
-            } catch (err) {
-                console.error("Failed to acquire wake lock:", err);
-            }
-        } else {
-            console.warn("Wake Lock API is not supported in this browser.");
-        }
+        requestWakeLock();
 
         return () => {
             clearInterval(interval);
-            // Release wake lock
-            if (wakeLock) {
-                wakeLock.release().then(() => {
-                    console.log("Wake lock released");
-                });
-            }
+            releaseWakeLock();
         };
     });
 
@@ -57,14 +47,9 @@
         return true;
     }
 
-    let progressStep = 1000;
-    const imageTime = 20 * 1000;
-
     function updateProgress() {
         progressInterval = setInterval(() => {
             progress += (progressStep / imageTime) * 100;
-
-            document.dispatchEvent(new Event("mousemove"));
 
             if (progress > 100) {
                 clearInterval(progressInterval);
@@ -79,12 +64,52 @@
         resetting = true;
         progress = 0;
 
+        if (wakeLock == null) requestWakeLock();
+
         requestAnimationFrame(() => {
             resetting = false;
             updateProgress();
         });
 
         clearInterval(progressInterval);
+    }
+
+    let wakeLock = null;
+
+    async function requestWakeLock() {
+        if (wakeLock != null) return;
+
+        if (!("wakeLock" in navigator)) {
+            console.warn("Wake Lock API is not supported in this browser.");
+            return;
+        }
+
+        try {
+            wakeLock = await navigator.wakeLock.request("screen");
+            console.log("Wake lock is active");
+
+            // Reacquire wake lock if it is released (e.g., due to visibility change)
+            document.addEventListener("visibilitychange", async () => {
+                if (
+                    wakeLock != null &&
+                    document.visibilityState == "visible"
+                ) {
+                    wakeLock = await navigator.wakeLock.request("screen");
+                    console.log("Wake lock reacquired");
+                }
+            });
+        } catch (err) {
+            console.error("Failed to acquire wake lock:", err);
+        }
+    }
+
+    function releaseWakeLock() {
+        if (wakeLock) {
+            wakeLock.release().then(() => {
+                console.log("Wake lock released");
+                wakeLock = null;
+            });
+        }
     }
 </script>
 
