@@ -2,6 +2,10 @@
     import { supabase } from "$lib/supabase";
     import { onMount } from "svelte";
     import Carousel from "svelte-carousel/src/components/Carousel/Carousel.svelte";
+    import NoSleep from "nosleep.js";
+
+    let noSleep = null;
+    let wakeLockEnabled = false;
 
     let images = [];
     let current = 0;
@@ -17,11 +21,13 @@
 
     onMount(async () => {
         if (await updateImages()) updateProgress();
-        requestWakeLock();
+
+        noSleep = new NoSleep();
+        setupNoSleep();
 
         return () => {
             clearInterval(interval);
-            releaseWakeLock();
+            disableNoSleep();
         };
     });
 
@@ -64,68 +70,45 @@
         resetting = true;
         progress = 0;
 
-        if (wakeLock == null) requestWakeLock();
-
         requestAnimationFrame(() => {
             resetting = false;
             updateProgress();
         });
-
-        clearInterval(progressInterval);
     }
 
-    let wakeLock = null;
-
-    async function requestWakeLock() {
-        if (wakeLock != null) return;
-
-        if (!("wakeLock" in navigator)) {
-            console.warn("Wake Lock API is not supported in this browser.");
-            return;
-        }
-
-        try {
-            wakeLock = await navigator.wakeLock.request("screen");
-            console.log("Wake lock is active");
-
-            // Reacquire wake lock if it is released (e.g., due to visibility change)
-            document.addEventListener("visibilitychange", async () => {
-                if (
-                    wakeLock != null &&
-                    document.visibilityState == "visible"
-                ) {
-                    wakeLock = await navigator.wakeLock.request("screen");
-                    console.log("Wake lock reacquired");
-                }
-            });
-        } catch (err) {
-            console.error("Failed to acquire wake lock:", err);
-        }
+    function setupNoSleep() {
+        document.addEventListener(
+            "click",
+            function enableNoSleep() {
+                document.removeEventListener("click", enableNoSleep, false);
+                noSleep.enable();
+                wakeLockEnabled = true;
+            },
+            false,
+        );
     }
 
-    function releaseWakeLock() {
-        if (wakeLock) {
-            wakeLock.release().then(() => {
-                console.log("Wake lock released");
-                wakeLock = null;
-            });
-        }
+    function disableNoSleep() {
+        noSleep.disable();
+        wakeLockEnabled = false;
     }
 </script>
 
 <div class="page">
-    {#if images.length > 0}
-        <div class="carousel">
-            <img src={images[current]} alt="Carousel Content" />
-            <div class="progress-bar-container">
-                <div
-                    class="progress-bar"
-                    class:resetting-bar={resetting}
-                    style="width: {progress}%; transition:
+    {#if wakeLockEnabled}
+    <div class="carousel">
+        <img src={images[current]} alt="Carousel Content" />
+        <div class="progress-bar-container">
+            <div
+                class="progress-bar"
+                class:resetting-bar={resetting}
+                style="width: {progress}%; transition:
             width {progressStep}ms linear;"
-                ></div>
-            </div>
+            ></div>
         </div>
+    </div>
+    {:else}
+        <button>Start the Display</button>
     {/if}
 </div>
 
@@ -175,5 +158,14 @@
 
     .resetting-bar {
         transition: none !important;
+    }
+
+    button {
+        font-size: 5rem;
+        border: none;
+        background-color: lightblue;
+        padding: 1rem;
+        border-radius: 1rem;
+        cursor: pointer;
     }
 </style>
