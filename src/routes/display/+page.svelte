@@ -11,7 +11,7 @@
     let current = 0;
 
     let progressStep = 1000;
-    const imageTime = 20 * 1000;
+    const imageTime = 30 * 1000;
 
     let progressInterval;
     let progress = 0;
