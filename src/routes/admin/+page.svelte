@@ -60,8 +60,17 @@
             };
         });
 
-        fileList.sort((a, b) => a.order - b.order);
-        fileList.forEach((file, i) => (file.order = i));
+        fileList.sort((a, b) =>
+            a.star == b.star ? a.order - b.order : a.star ? -1 : 1,
+        );
+
+        fileList.forEach((file, i) => {
+            if (file.order == i) return;
+            changes = true;
+            file.order = i;
+        });
+
+        if (changes) saveChanges();
     }
 
     async function deleteFile(index) {
@@ -89,7 +98,7 @@
     }
 
     async function uploadFile() {
-        file = event.target.files[0];
+        let file = event.target.files[0];
 
         if (!file) {
             uploadMessage = "Please select a file first.";
@@ -151,8 +160,8 @@ target="_blank">Free Convert</a>`;
         fileList = [...fileList];
     }
 
-    function saveChanges() {
-        fileList.map(async (file) => {
+    async function saveChanges() {
+        await fileList.map(async (file) => {
             await supabase
                 .from("Carousel")
                 .update({ order: file.order, star: file.star, time: file.time })
@@ -186,7 +195,11 @@ target="_blank">Free Convert</a>`;
                 >
                 <td><img src={file.url} alt={file.name} /></td>
                 <td>
-<input type="number" bind:value={file.time} on:focus={() => changes = true} />
+                    <input
+                        type="number"
+                        bind:value={file.time}
+                        on:focus={() => (changes = true)}
+                    />
                 </td>
                 <td>
                     <button on:click={() => deleteFile(i)}>🗑️</button>
