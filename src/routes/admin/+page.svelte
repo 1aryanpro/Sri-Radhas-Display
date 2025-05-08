@@ -61,6 +61,7 @@
         });
 
         fileList.sort((a, b) => a.order - b.order);
+        fileList.forEach((file, i) => (file.order = i));
     }
 
     async function deleteFile(index) {
@@ -121,6 +122,8 @@ target="_blank">Free Convert</a>`;
             return;
         }
 
+        await supabase.from("Carousel").insert([{ id: data.id, order: 0 }]);
+
         uploadMessage = `Uploaded successfully as: ${fileName}`;
         loadFiles();
     }
@@ -149,8 +152,6 @@ target="_blank">Free Convert</a>`;
     }
 
     function saveChanges() {
-        if (!changes) return;
-
         fileList.map(async (file) => {
             await supabase
                 .from("Carousel")
@@ -185,7 +186,7 @@ target="_blank">Free Convert</a>`;
                 >
                 <td><img src={file.url} alt={file.name} /></td>
                 <td>
-                    <input type="number" bind:value={file.time} />
+<input type="number" bind:value={file.time} on:focus={() => changes = true} />
                 </td>
                 <td>
                     <button on:click={() => deleteFile(i)}>🗑️</button>
