@@ -3,10 +3,9 @@
     import { onMount } from "svelte";
     import { goto } from "$app/navigation";
 
-    let user = null;
-    let file = null;
     let uploadMessage = "";
     let fileList = [];
+    let changes = false;
 
     const BUCKET_NAME = "carousel";
 
@@ -16,10 +15,8 @@
         } = await supabase.auth.getSession();
 
         if (!session) goto("/");
-        else {
-            user = session.user;
-            await loadFiles();
-        }
+
+        await loadFiles();
     });
 
     async function loadFiles() {
@@ -30,14 +27,44 @@
         if (error) {
             console.error("Error loading files:", error.message);
             fileList = [];
-        } else {
-            fileList = data.filter(
-                (file) => file.name !== ".emptyFolderPlaceholder",
-            );
+            return;
         }
+
+        let { data: carousel, error: e } = await supabase
+            .from("Carousel")
+            .select("*");
+
+        let carouselMap = new Map(carousel.map((c) => [c.id, c]));
+
+        fileList = data.filter(
+            (file) => file.name !== ".emptyFolderPlaceholder",
+        );
+
+        fileList = fileList.map((file) => {
+            let name = file.name;
+            let id = file.id;
+
+            let c = carouselMap.get(id);
+            let order = c.order;
+            let star = c.star;
+            let time = c.time;
+            let url = getFileUrl(name);
+
+            return {
+                name,
+                id,
+                order,
+                star,
+                time,
+                url,
+            };
+        });
+
+        fileList.sort((a, b) => a.order - b.order);
     }
 
-    async function deleteFile(fileName) {
+    async function deleteFile(index) {
+        let fileName = fileList[index].name;
         const conf = window.confirm(
             `Are you sure you want to delete ${fileName}`,
         );
@@ -49,22 +76,15 @@
 
         if (error) {
             console.error("Failed to delete", fileName, error.message);
-        } else {
-            fileList = fileList.filter((file) => file.name !== fileName);
+            return;
         }
+
+        fileList = fileList.filter((file) => file.name !== fileName);
     }
 
     function getFileUrl(fileName) {
         return supabase.storage.from(BUCKET_NAME).getPublicUrl(fileName).data
             .publicUrl;
-    }
-
-    function getFormattedDate() {
-        const date = new Date();
-        const yyyy = date.getFullYear();
-        const mm = String(date.getMonth() + 1).padStart(2, "0");
-        const dd = String(date.getDate()).padStart(2, "0");
-        return `${yyyy}${mm}${dd}`;
     }
 
     async function uploadFile() {
@@ -75,10 +95,9 @@
             return;
         }
 
-        const formattedDate = getFormattedDate();
         const fileExtension = file.name.split(".").pop();
         const baseName = file.name.replace(/\.[^/.]+$/, "");
-        const fileName = `${formattedDate}_${baseName}.${fileExtension}`;
+        const fileName = `${baseName}.${fileExtension}`;
 
         const imageTypes = ["jpg", "jpeg", "png"];
         if (fileExtension == "pdf") {
@@ -99,10 +118,47 @@ target="_blank">Free Convert</a>`;
 
         if (error) {
             uploadMessage = `Upload failed: ${error.message}`;
-        } else {
-            uploadMessage = `Uploaded successfully as: ${fileName}`;
-            loadFiles();
+            return;
         }
+
+        uploadMessage = `Uploaded successfully as: ${fileName}`;
+        loadFiles();
+    }
+
+    function toggleStar(index) {
+        fileList[index].star = !fileList[index].star;
+        changes = true;
+    }
+
+    function move(index, dir) {
+        let a = index;
+        let b = dir ? a + 1 : a - 1;
+
+        if (b == -1 || b == fileList.length) return;
+        changes = true;
+
+        let fileA = fileList[a];
+        let fileB = fileList[b];
+
+        let temp = fileA.order;
+        fileA.order = fileB.order;
+        fileB.order = temp;
+
+        [fileList[a], fileList[b]] = [fileList[b], fileList[a]];
+        fileList = [...fileList];
+    }
+
+    function saveChanges() {
+        if (!changes) return;
+
+        fileList.map(async (file) => {
+            await supabase
+                .from("Carousel")
+                .update({ order: file.order, star: file.star, time: file.time })
+                .eq("id", file.id);
+        });
+
+        changes = false;
     }
 </script>
 
@@ -116,21 +172,37 @@ target="_blank">Free Convert</a>`;
     <p><span>{@html uploadMessage}</span></p>
 {/if}
 
-<h2>Uploaded Files</h2>
-<div class="grid">
-    {#each fileList as file}
-        <div class="card">
-            <div class="image-wrapper">
-                <img
-                    src={supabase.storage
-                        .from(BUCKET_NAME)
-                        .getPublicUrl(file.name).data.publicUrl}
-                    alt={file.name}
-                />
-                <button on:click={() => deleteFile(file.name)}>X</button>
-            </div>
-        </div>
-    {/each}
+<h2>Carousel</h2>
+
+<table>
+    <tbody>
+        {#each fileList as file, i}
+            <tr>
+                <td
+                    ><button class="star" on:click={() => toggleStar(i)}
+                        >{file.star ? "★" : "☆"}</button
+                    ></td
+                >
+                <td><img src={file.url} alt={file.name} /></td>
+                <td>
+                    <input type="number" bind:value={file.time} />
+                </td>
+                <td>
+                    <button on:click={() => deleteFile(i)}>🗑️</button>
+                </td>
+                <td>
+                    <button on:click={() => move(i, false)}>🔼</button>
+                    <button on:click={() => move(i, true)}>🔽</button>
+                </td>
+            </tr>
+        {/each}
+    </tbody>
+</table>
+
+<div class="save-container">
+    <button class="save" on:click={saveChanges}
+        >{changes ? "💾 Save Changes" : "No Changes to Save"}</button
+    >
 </div>
 
 <style>
@@ -138,7 +210,8 @@ target="_blank">Free Convert</a>`;
         font-family: sans-serif;
     }
 
-    .upload-container {
+    .upload-container,
+    .save-container {
         display: flex;
         justify-content: center;
         margin: 1rem 0;
@@ -161,34 +234,36 @@ target="_blank">Free Convert</a>`;
         margin: 2rem 0;
     }
 
-    .grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-        gap: 1.5rem;
-        padding: 1rem;
-    }
-
-    .card {
-        background: #dddddd;
-        border-radius: 12px;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
-    }
-
-    .image-wrapper {
-        position: relative;
-        width: 100%;
-    }
-
     img {
-        width: 100%;
-        max-height: 200px;
+        max-height: 100px;
         object-fit: cover;
         border-radius: 8px;
         display: block;
-        border: 4px solid black;
+        border: 2px solid black;
+        margin: auto;
     }
 
-    label {
+    input {
+        font-size: 2rem;
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        border: 2px solid black;
+        width: 40%;
+    }
+
+    button {
+        border: none;
+        font-size: 2.5rem;
+        background: none;
+        cursor: pointer;
+    }
+
+    button.star {
+        color: orange;
+    }
+
+    label,
+    button.save {
         cursor: pointer;
         padding: 0.5rem 1rem;
         font-size: 1.5rem;
@@ -202,23 +277,17 @@ target="_blank">Free Convert</a>`;
         background: #888888;
     }
 
-    button {
-        position: absolute;
-        top: 8px;
-        left: 8px;
-        background: rgba(200, 200, 200, 0.9); /* red with some transparency */
-        border: none;
-        padding: 0.3rem 0.6rem;
-        width: 2.5rem;
-        height: 2.5rem;
-        border-radius: 50%;
-        font-size: 1.1rem;
-        cursor: pointer;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-        transition: background 0.2s ease-in-out;
+    table {
+        font-family: arial, sans-serif;
+        border-collapse: collapse;
+        width: 80%;
+        margin: auto;
     }
 
-    button:hover {
-        background: rgba(201, 48, 44, 1);
+    td {
+        border: 1px solid #dddddd;
+        text-align: left;
+        padding: 8px;
+        text-align: center;
     }
 </style>

@@ -11,7 +11,7 @@
     let current = 0;
 
     let progressStep = 1000;
-    const imageTime = 30 * 1000;
+    let imageTime = 30 * 1000;
 
     let progressInterval;
     let progress = 0;
@@ -37,19 +37,58 @@
             .list("", { limit: 100 });
 
         if (error) {
-            console.error("Error fetching images:", error.message);
+            console.error("Error loading files:", error.message);
+            images = [];
             return false;
         }
 
-        images = data
-            .filter((file) => file.name !== ".emptyFolderPlaceholder")
-            .map(
-                (file) =>
-                    supabase.storage.from(BUCKET_NAME).getPublicUrl(file.name)
-                        .data.publicUrl,
-            );
+        let { data: carousel, error: e } = await supabase
+            .from("Carousel")
+            .select("*");
+
+        let carouselMap = new Map(carousel.map((c) => [c.id, c]));
+
+        images = data.filter((file) => file.name !== ".emptyFolderPlaceholder");
+
+        images = images.map((file) => {
+            let name = file.name;
+            let id = file.id;
+
+            let c = carouselMap.get(id);
+            let order = c.order;
+            let star = c.star;
+            let time = c.time;
+            let url = supabase.storage.from(BUCKET_NAME).getPublicUrl(file.name)
+                .data.publicUrl;
+
+            return {
+                name,
+                id,
+                order,
+                star,
+                time,
+                url,
+            };
+        });
+
+        let stars = images.filter(file => file.star);
+        stars.sort((a, b) => a.order - b.order);
+
+        let norms = images.filter(file => !file.star);
+        norms.sort((a, b) => a.order - b.order);
+
+        const loop = stars.length + 1;
+        for (let i = 0; i < loop * norms.length; i++) {
+            let curr = null;
+            if (i % loop == 0) curr = norms[i/loop];
+            else curr = stars[i % loop - 1];
+
+            images[i] = curr;
+        }
+
 
         if (current >= images.length) current = 0;
+        imageTime = images[current].time * 1000;
         return true;
     }
 
@@ -69,6 +108,7 @@
     function resetProgress() {
         resetting = true;
         progress = 0;
+        imageTime = images[current].time * 1000;
 
         requestAnimationFrame(() => {
             resetting = false;
@@ -96,17 +136,17 @@
 
 <div class="page">
     {#if wakeLockEnabled}
-    <div class="carousel">
-        <img src={images[current]} alt="Carousel Content" />
-        <div class="progress-bar-container">
-            <div
-                class="progress-bar"
-                class:resetting-bar={resetting}
-                style="width: {progress}%; transition:
+        <div class="carousel">
+            <img src={images[current].url} alt="Carousel Content" />
+            <div class="progress-bar-container">
+                <div
+                    class="progress-bar"
+                    class:resetting-bar={resetting}
+                    style="width: {progress}%; transition:
             width {progressStep}ms linear;"
-            ></div>
+                ></div>
+            </div>
         </div>
-    </div>
     {:else}
         <button>Start the Display</button>
     {/if}
