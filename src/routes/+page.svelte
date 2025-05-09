@@ -1,87 +1,211 @@
 <script>
     import { supabase } from "$lib/supabase";
-    import { goto } from "$app/navigation";
     import { onMount } from "svelte";
+    import Carousel from "svelte-carousel/src/components/Carousel/Carousel.svelte";
+    import NoSleep from "nosleep.js";
 
-    let email = "";
-    let password = "";
-    let errorMessage = "";
+    let noSleep = null;
+    let wakeLockEnabled = false;
 
-    async function handleLogin() {
-        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    let images = [];
+    let current = 0;
 
-        const { error } = await supabase.auth.signInWithPassword({
-            email: emailPattern.test(email) ? email : email + "@sriradhas.com",
-            password,
-        });
+    let progressStep = 1000;
+    let imageTime = 30 * 1000;
+
+    let progressInterval;
+    let progress = 0;
+    let resetting = false;
+
+    const BUCKET_NAME = "carousel";
+
+    onMount(async () => {
+        if (await updateImages()) updateProgress();
+
+        noSleep = new NoSleep();
+        setupNoSleep();
+
+        return () => {
+            clearInterval(interval);
+            disableNoSleep();
+        };
+    });
+
+    async function updateImages() {
+        const { data, error } = await supabase.storage
+            .from(BUCKET_NAME)
+            .list("", { limit: 100 });
 
         if (error) {
-            errorMessage = error.message;
-        } else {
-            goto("/admin");
+            console.error("Error loading files:", error.message);
+            images = [];
+            return false;
         }
+
+        let { data: carousel, error: e } = await supabase
+            .from("Carousel")
+            .select("*");
+
+        let carouselMap = new Map(carousel.map((c) => [c.id, c]));
+
+        images = data.filter((file) => file.name !== ".emptyFolderPlaceholder");
+
+        images = images.map((file) => {
+            let name = file.name;
+            let id = file.id;
+
+            let c = carouselMap.get(id);
+            let order = c.order;
+            let star = c.star;
+            let time = c.time;
+            let url = supabase.storage.from(BUCKET_NAME).getPublicUrl(file.name)
+                .data.publicUrl;
+
+            return {
+                name,
+                id,
+                order,
+                star,
+                time,
+                url,
+            };
+        });
+
+        let stars = images.filter(file => file.star);
+        stars.sort((a, b) => a.order - b.order);
+
+        let norms = images.filter(file => !file.star);
+        norms.sort((a, b) => a.order - b.order);
+
+        const loop = stars.length + 1;
+        for (let i = 0; i < loop * norms.length; i++) {
+            let curr = null;
+            if (i % loop == 0) curr = norms[i/loop];
+            else curr = stars[i % loop - 1];
+
+            images[i] = curr;
+        }
+
+
+        if (current >= images.length) current = 0;
+        imageTime = images[current].time * 1000;
+        return true;
     }
 
-    function goToDisplay() {
-        goto("/display");
+    function updateProgress() {
+        progressInterval = setInterval(() => {
+            progress += (progressStep / imageTime) * 100;
+
+            if (progress > 100) {
+                clearInterval(progressInterval);
+                current = (current + 1) % images.length;
+                resetProgress();
+                updateImages();
+            }
+        }, progressStep);
+    }
+
+    function resetProgress() {
+        resetting = true;
+        progress = 0;
+        imageTime = images[current].time * 1000;
+
+        requestAnimationFrame(() => {
+            resetting = false;
+            updateProgress();
+        });
+    }
+
+    function setupNoSleep() {
+        document.addEventListener(
+            "click",
+            function enableNoSleep() {
+                document.removeEventListener("click", enableNoSleep, false);
+                noSleep.enable();
+                wakeLockEnabled = true;
+            },
+            false,
+        );
+    }
+
+    function disableNoSleep() {
+        noSleep.disable();
+        wakeLockEnabled = false;
     }
 </script>
 
-<main class="login-container">
-    <h1>Login</h1>
-    {#if errorMessage}
-        <p class="error">{errorMessage}</p>
+<div class="page">
+    {#if wakeLockEnabled}
+        <div class="carousel">
+            <img src={images[current].url} alt="Carousel Content" />
+            <div class="progress-bar-container">
+                <div
+                    class="progress-bar"
+                    class:resetting-bar={resetting}
+                    style="width: {progress}%; transition:
+            width {progressStep}ms linear;"
+                ></div>
+            </div>
+        </div>
+    {:else}
+        <button>Start the Display</button>
     {/if}
-
-    <input type="email" placeholder="Email" bind:value={email} />
-    <input type="password" placeholder="Password" bind:value={password} />
-    <button on:click={handleLogin}>Login</button>
-
-    <hr />
-    <button on:click={goToDisplay}>Go to Display Page</button>
-</main>
+</div>
 
 <style>
     * {
         margin: 0;
         padding: 0;
-        font-family: sans-serif;
-        text-align: center;
     }
 
-    hr {
-        margin: 20px;
-    }
-
-    .login-container {
+    .page {
+        height: 100vh;
+        width: 100vw;
         display: flex;
-        flex-direction: column;
-        gap: 1rem;
-        max-width: 300px;
-        margin: 5rem auto;
+        justify-content: center;
+        align-items: center;
+        background-color: #000;
     }
 
-    .error {
-        background-color: #ff7f7f;
-        padding: 0.5rem;
-        border-radius: 10px;
+    .carousel {
+        width: 100%;
+        position: relative;
     }
 
-    input,
+    img {
+        height: 100vh;
+        width: 100%;
+        max-width: 100vw;
+        object-fit: contain;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        transition: opacity 0.5s ease-in-out;
+    }
+
+    .progress-bar-container {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        height: 1vh;
+        width: 100%;
+        background: rgba(255, 255, 255, 0.1);
+        overflow: hidden;
+    }
+
+    .progress-bar {
+        height: 1vh;
+        background: #00bfff;
+    }
+
+    .resetting-bar {
+        transition: none !important;
+    }
+
     button {
-        padding: 0.5rem;
-        font-size: 1.5rem;
-        border-radius: 15px;
-    }
-
-    input {
-        border: 2px solid grey;
-    }
-
-    button {
+        font-size: 5rem;
         border: none;
-        background-color: #222222;
-        color: white;
+        background-color: lightblue;
+        padding: 1rem;
+        border-radius: 1rem;
         cursor: pointer;
     }
 </style>
