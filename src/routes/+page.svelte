@@ -17,6 +17,8 @@
     let progress = 0;
     let resetting = false;
 
+    let updateCounter = 0;
+
     const BUCKET_NAME = "carousel";
 
     onMount(async () => {
@@ -32,6 +34,13 @@
     });
 
     async function updateImages() {
+        if (updateCounter != 0) {
+            updateCounter--;
+            return;
+        }
+
+        updateCounter = 10;
+
         const { data, error } = await supabase.storage
             .from(BUCKET_NAME)
             .list("", { limit: 100 });
