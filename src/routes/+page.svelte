@@ -27,7 +27,7 @@
         setupNoSleep();
 
         return () => {
-            clearInterval(interval);
+            clearInterval(progressInterval);
             disableNoSleep();
         };
     });
@@ -103,13 +103,27 @@
         }
 
 
-        if (current >= images.length) current = 0;
+        if (images.length === 0) {
+            current = 0;
+            return false;
+        }
+
+        if (!images[current]) current = 0;
         imageTime = images[current].time * 1000;
         return true;
     }
 
     function updateProgress() {
+        if (images.length === 0) return;
+
         progressInterval = setInterval(() => {
+            if (images.length === 0) {
+                clearInterval(progressInterval);
+                current = 0;
+                progress = 0;
+                return;
+            }
+
             progress += (progressStep / imageTime) * 100;
 
             if (progress > 100) {
@@ -124,6 +138,13 @@
     function resetProgress() {
         resetting = true;
         progress = 0;
+
+        if (!images[current]) current = 0;
+        if (images.length === 0) {
+            resetting = false;
+            return;
+        }
+
         imageTime = images[current].time * 1000;
 
         requestAnimationFrame(() => {
@@ -152,17 +173,21 @@
 
 <div class="page">
     {#if wakeLockEnabled}
-        <div class="carousel">
-            <img src={images[current].url} alt="Carousel Content" />
-            <div class="progress-bar-container">
-                <div
-                    class="progress-bar"
-                    class:resetting-bar={resetting}
-                    style="width: {progress}%; transition:
-            width {progressStep}ms linear;"
-                ></div>
+        {#if images[current]}
+            <div class="carousel">
+                <img src={images[current].url} alt="Carousel Content" />
+                <div class="progress-bar-container">
+                    <div
+                        class="progress-bar"
+                        class:resetting-bar={resetting}
+                        style="width: {progress}%; transition:
+                width {progressStep}ms linear;"
+                    ></div>
+                </div>
             </div>
-        </div>
+        {:else}
+            <p class="status">Images are unavailable. Please refresh to try again.</p>
+        {/if}
     {:else}
         <button>Start the Display</button>
     {/if}
@@ -214,6 +239,11 @@
 
     .resetting-bar {
         transition: none !important;
+    }
+
+    .status {
+        color: #fff;
+        font-size: 1.5rem;
     }
 
     button {
