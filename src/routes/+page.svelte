@@ -1,7 +1,6 @@
 <script>
     import { supabase } from "$lib/supabase";
     import { onMount } from "svelte";
-    import Carousel from "svelte-carousel/src/components/Carousel/Carousel.svelte";
     import NoSleep from "nosleep.js";
 
     let noSleep = null;
@@ -57,11 +56,13 @@
 
         let carouselMap = new Map(carousel.map((c) => [c.id, c]));
 
-        images = data.filter((file) => file.name !== ".emptyFolderPlaceholder");
+        let newImages = data.filter((file) => file.name !== ".emptyFolderPlaceholder");
 
-        images = images.map((file) => {
-            let name = file.name;
+        newImages = newImages.map((file, i) => {
             let id = file.id;
+            if (images[i]?.id == id) return images[i];
+
+            let name = file.name;
 
             let c = carouselMap.get(id);
             let order = c.order;
@@ -79,6 +80,8 @@
                 url,
             };
         });
+
+        images = newImages;
 
         let stars = images.filter(file => file.star);
         stars.sort((a, b) => a.order - b.order);
