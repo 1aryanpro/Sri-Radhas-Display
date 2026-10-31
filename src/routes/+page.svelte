@@ -46,13 +46,17 @@
 
         if (error) {
             console.error("Error loading files:", error.message);
-            images = [];
             return false;
         }
 
         let { data: carousel, error: e } = await supabase
             .from("Carousel")
             .select("*");
+
+        if (e) {
+            console.error("Error loading carousel metadata:", e.message);
+            return false;
+        }
 
         let carouselMap = new Map(carousel.map((c) => [c.id, c]));
 
